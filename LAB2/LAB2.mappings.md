@@ -36,6 +36,21 @@ PUT bank2
 
 Re-insert the data using the same `curl` command from Lab 1 (make sure to update the index name in the URL to `bank2`).
 
+Or use the reindex API
+
+```
+
+POST _reindex
+ {
+  "source": {
+    "index" : "bank"
+  },
+  "dest": {
+    "index" : "bank2"
+  }
+ }
+```
+
 Then compare the disk usage of both indices:
 
 ```http
