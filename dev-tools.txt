@@ -1,0 +1,396 @@
+# Part 1 first commands
+GET /
+GET /_cluster/health
+GET /_cat/nodes?v
+GET /_cat/indices?v
+GET /_cat/allocation?h=shards,node&v
+GET _cat/shards?v
+
+# Part 2 insert some data
+POST employes/_doc
+{
+    "name" : "Joe",
+    "age" : 44
+}
+
+GET employes
+
+# check the bank index
+GET bank/_count
+GET bank/_search
+
+# Analyzing the mappings/settings
+GET bank
+GET bank/_settings
+GET bank/_mapping
+
+## Mappings, dynamic mappings, data types, basic searches
+POST animals/_doc
+{
+    "name" : "Joe",
+    "age" : 12,
+    "account_created" : "2025-10-14T12:16:00Z"
+}
+
+GET animals/_mapping
+
+# text types VS keyword types
+# text: searchable
+#  use case : phrases
+# keywords: searchable, sortable, aggregatable
+#  use case: codes, ids, firstname, city name, etc...
+
+# Analyze
+## type text, standard
+GET _analyze?filter_path=**.token&format=yaml
+{
+    "text" : "Hello ElasticSearch WorLD !!!",
+    "analyzer" : "standard"
+}
+## type keyword
+GET _analyze?filter_path=**.token&format=yaml
+{
+    "text" : "Hello ElasticSearch WorLD !!!",
+    "analyzer" : "keyword"
+}
+
+## type keyword
+GET _analyze?filter_path=**.token&format=yaml
+{
+    "text" : "F",
+    "analyzer" : "standard"
+}
+
+# Term query = exact match, no analyze
+
+# gender: typed as text (standard analyzer)
+# gender.keyword: typed as keyword (noop analyzer)
+GET bank/_search
+{
+    "query": {
+        "term": {
+          "gender.keyword": {
+            "value": "F"
+          }
+        }
+    }
+}
+
+# INVOICE-CUSTOMER-A-1234
+# INVOICE-CUSTOMER-a-1234
+
+GET bank/_search
+{
+    "query": {
+        "match": {
+          "gender": "M"
+        }
+    }
+}
+
+# INVOICE-CUSTOMER-A-1234
+# INVOICE-CUSTOMER-B-1234
+# INVOICE-CUSTOMER-C-1234
+# INVOICE-CUSTOMER-A-4321
+
+# mapping:
+#   code: typed as text (standard analyzer)
+#   code.keyword: typed as keyword
+
+# json: "INVOICE-CUSTOMER-A-1234"
+# code: [invoice, customer, a, 1234]
+# code.keyword: 'INVOICE-CUSTOMER-A-1234'
+
+GET _analyze
+{
+    "text" : "There's a seagull on the roof"
+}
+
+GET invoices/_search
+{
+    "query": {
+        "prefix": {
+          "code.keyword": {
+            "value": "INVOICE-CUSTOMER-A"
+          }
+        }
+    }
+}
+
+
+GET invoices/_search
+{
+    "query": {
+        "wildcard": {
+            "code.keyword": {
+                "value": "*-A-*"
+            }
+        }
+    }
+}
+
+
+GET invoices/_search
+{
+    "query": {
+        "match": {
+          "code": "CUSTOMER-A"
+        }
+    }
+}
+
+GET invoices/_search
+{
+    "query": {
+        "match": {
+          "code": "There's a seagull on the roof"
+        }
+    }
+}
+
+GET invoices/_search
+{
+    "query": {
+        "term": {
+          "code": {
+            "value": "INVOICE"
+          }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+GET invoices/_mapping
+
+GET invoices/_count
+
+
+
+POST invoices/_doc
+{
+    "code" : "INVOICE-CUSTOMER-A-4321"
+}
+
+DELETE webpages
+POST webpages/_doc
+{
+    "title" : "I love Java",
+    "category" : "dev"
+}
+
+POST webpages/_doc
+{
+    "title" : "Come to Java Island, beautiful !",
+    "category" : "trip"
+}
+
+POST webpages/_doc
+{
+    "title" : "Il fait trop la Java et finit mal !",
+    "category" : "dumb stuff"
+}
+
+GET webpages/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "title": "java"
+          }
+        }
+      ],
+      "should": [
+        {
+            "term": {
+              "category": {
+                "value": "dumb",
+                "boost": 10
+              }
+            }
+        },
+        {
+            "term": {
+              "category": {
+                "value": "dev",
+                "boost": 2
+              }
+            }
+        }
+      ]
+    }
+  }
+}
+
+
+GET webpages/_search?explain=true
+{
+    "query": {
+        "match": {
+          "title": "Java"
+        }
+    }
+}
+
+
+
+# IPs
+DELETE my-logs
+PUT my-logs
+{
+    "mappings": {
+        "properties": {
+            "my-ip" : {
+              "type" : "ip"
+            },
+            "my-point" : {
+              "type" : "geo_point"
+            }
+        }
+    }
+}
+
+
+POST my-logs/_doc
+{
+  "my-ip" : "192.168.1.105",
+  "my-point" : {
+    "lat" : 48.866667,
+    "lon" : 2.333333
+  }
+}
+
+GET my-logs/_search
+{
+  "query": {
+    "term": {
+      "my-ip": {
+        "value": "192.168.1.0/24"
+      }
+    }
+  }
+}
+
+GET my-logs/_search
+{
+  "query": {
+    "geo_bounding_box": {
+      "my-point": {
+        "top_left": {
+          "lat": 49,
+          "lon": 2
+        },
+        "bottom_right": {
+          "lat": 48,
+          "lon": 3
+        }
+      }
+    }
+  }
+}
+
+GET bank/_search
+
+# exercice: optimizing the data
+# 1. analyze mapping
+GET bank/_mapping
+# 2. choose correct types (only one type per field)
+# 3. prepare a new index
+# 4. reindex
+
+
+
+
+# hunt dynamic mapping
+GET */_mapping
+
+# 
+
+
+
+POST pizza/_doc
+{
+  "name" : "ananas",
+  "price" : 10
+}
+# name = text
+# name.keyword = keyword
+# price = long
+POST pizza/_doc
+{
+  "name" : "pepperoni",
+  "price" : 10.5
+}
+
+GET pizza/_count
+
+GET pizzav2/_search
+{
+  "query": {
+    "term": {
+      "price": {
+        "value": 10.5
+      }
+    }
+  }
+}
+
+PUT pizzav2
+{
+  "mappings": {
+    "properties": {
+      "name": {
+        "type" : "keyword"
+      },
+      "price" : {
+        "type": "float"
+      }
+    }
+  }
+}
+
+POST _reindex
+ {
+  "source": {
+    "index" : "pizza"
+  },
+  "dest": {
+    "index" : "pizzav2"
+  }
+ }
+
+GET _cat/indices/pizza*?v&h=index,store.size
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
