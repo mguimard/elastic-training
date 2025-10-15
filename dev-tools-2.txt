@@ -1,0 +1,332 @@
+# Aggregations
+
+## metrics
+GET morgan-bank2/_search?filter_path=aggregations&format=yaml
+{
+    "size": 0,
+    "query": {
+        "term": {
+            "state": {
+                "value": "TX"
+            }
+        }
+    },
+    "aggs": {
+      "average_of_balance": {
+        "avg": {
+            "field": "balance"
+        }
+      },
+      "average_of_age": {
+        "avg": {
+            "field": "age"
+        }
+      }
+    }
+}
+
+## buckets
+GET morgan-bank2/_search?filter_path=**.buckets&format=yaml
+{
+    "size": 0,
+    "query": {
+        "match_all": {}
+    },
+    "aggs": {
+      "by_gender": {
+        "terms": {
+            "field": "gender"
+        }
+      },
+      "by_state": {
+        "terms": {
+            "field": "state",
+            "size": 1000
+        }
+      }
+    }
+}
+
+## nested 
+
+GET morgan-bank2/_search?filter_path=aggregations&format=yaml
+{
+    "size": 0,
+    "query": {
+        "match_all": {}
+    },
+    "aggs": {
+      "by_gender": {
+        "terms": {
+            "field": "gender"            
+        },
+        "aggs": {
+          "average_of_balance": {
+            "avg": {
+                "field": "balance"
+            }
+          },
+          "average_of_age": {
+            "avg": {
+                "field": "age"
+            }
+          }
+        } 
+      }
+    }
+}
+
+## range
+
+GET morgan-bank2/_search
+{
+    "size": 0,
+    "query": {
+        "match_all": {}
+    },
+    "aggs": {
+      "by_age": {
+        "range": {
+          "field": "age",
+          "ranges": [
+            {
+              "from": 20,
+              "to": 25
+            },
+            {
+              "from": 25,
+              "to": 30
+            }
+          ]
+        }
+      }
+    }
+}
+
+# historic : dynamic range
+GET morgan-bank2/_search
+{
+    "size": 0,
+    "query": {
+        "match_all": {}
+    },
+    "aggs": {
+      "by_age": {
+        "histogram": {
+            "field": "age",
+            "interval": 5
+        }
+      }
+    }
+}
+
+
+
+# Analysis
+GET _analyze?filter_path=**.token&format=yaml
+{
+    "text" : "Hello elastic-SeArCH! :)",
+    "analyzer" : "standard"
+}
+
+GET _analyze?filter_path=**.token&format=yaml
+{
+    "text" : "Where is Bryan? In the kitchen.",
+    "analyzer" : "english"
+}
+
+GET _analyze?filter_path=**.token&format=yaml
+{
+    "text" : "J'aime les boulettes mais je préfere les légumes",
+    "analyzer" : "french"
+}
+
+GET _analyze?filter_path=**.token&format=yaml
+{
+    "text" : "a B c d e-f !!!",
+    "analyzer" : "whitespace"
+}
+
+# input:
+# Crème-Fraîche 40%
+# Crème Fraîche 40%
+# Crème Fraîche 40 %
+# Creme Fraiche 40%
+# Creme Fraiche 40 %
+# Creme fraiche40%
+# index output [crem, frai, 40]
+
+# user search "Crème-Fraîche 40%" -> [crem, frai, 40]
+
+
+# specify analyzer for given field
+DELETE animals
+PUT animals
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_custom_analyzer": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "asciifolding",
+            "stop"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "name": {
+        "type": "text",
+        "analyzer": "my_custom_analyzer"
+      }
+    }
+  }
+}
+
+
+
+# pipelines
+
+
+# 109.169.248.247 - - [12/Dec/2015:18:25:11 +0100] "GET /administrator/ HTTP/1.1" 200 4263 "-" "Mozilla/5.0 (Windows NT 6.0; rv:34.0) Gecko/20100101 Firefox/34.0" "-"
+# 109.169.248.247 - - [12/Dec/2015:18:25:11 +0100] "POST /administrator/index.php HTTP/1.1" 200 4494 "http://almhuette-raith.at/administrator/" "Mozilla/5.0 (Windows NT 6.0; rv:34.0) Gecko/20100101 Firefox/34.0" "-"
+
+
+POST my-logs/_doc
+{
+    "message" : "109.169.248.247 - - [12/Dec/2015:18:25:11 +0100] \"GET /administrator/ HTTP/1.1\" 200 4263 \"-\" \"Mozilla/5.0 (Windows NT 6.0; rv:34.0) Gecko/20100101 Firefox/34.0\" \"-\""
+}
+
+# ip: 109.169.248.247
+# date: 12/Dec/2015:18:25:11 +0100
+# http.request.verb: GET
+
+PUT _ingest/pipeline/my-logs-parser
+{
+  "description": "This pipeline blablabla",  
+  "processors": [
+    {
+      "rename": {
+        "field": "message",
+        "target_field": "original.message"
+      }
+    },
+    {
+      "grok": {
+        "field": "original.message",
+        "patterns": [
+          "%{IP:my-ip}%{SPACE}"
+        ]
+      }
+    }
+  ],
+  "on_failure": [    
+    {
+        "set": {
+          "field": "_index",
+          "value": "errors-{{_index}}"
+        }
+    }
+  ]
+}
+
+
+POST _ingest/pipeline/_simulate
+{
+  "docs": [
+    {
+      "_source": {
+        "message": "max;12;dog"
+      }
+    },
+    {
+      "_source": {
+        "message": "boby;5;cat"
+      }
+    }
+  ],
+  "pipeline": {
+    "processors": [
+      {
+        "pipeline": {
+          "name": "an-other-pipeline",
+          "if": "ctx?.age? > 25"
+        }
+      },
+      {
+        "rename": {
+          "field": "message",
+          "target_field": "original.message"
+        }
+      },
+      {
+        "csv": {
+          "field": "original.message",
+          "separator": ";",
+          "target_fields": [
+            "name",
+            "age",
+            "type"
+          ]
+        }
+      },
+      {
+        "convert": {
+          "field": "age",
+          "type": "integer"
+        }
+      },
+      {
+        "script": {
+          "source": """
+            // subset of java
+            if(ctx['age'] >= 10){
+                ctx['new_field'] = 'old';
+            } else {
+                ctx['new_field'] = 'young';
+            }
+            """
+        }
+      }
+    ]
+  }
+}
+
+# Timestamps
+# "@timestamp" means the date when the event occured
+# "event.ingested" is the date when the document is indexed
+
+POST my-super-logs/_doc
+{
+    "@timestamp" : "2025-10-15T08:25:00Z",
+    "my-app":{
+        "some-metric": 123
+    }
+}
+
+POST my-super-logs/_doc
+{
+    "@timestamp" : "2025-10-15T08:29:20Z",
+    "my-app":{
+        "some-metric": 54
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+

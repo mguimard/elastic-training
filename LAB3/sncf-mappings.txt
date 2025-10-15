@@ -1,0 +1,29 @@
+PUT sncf
+{
+  "mappings": {
+    "properties": {
+      "@timestamp": {
+        "type": "date"
+      },
+      "name": {
+        "type": "completion",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "uic_code": {
+        "type": "keyword"
+      },
+      "issues": {
+        "type": "integer"
+      },
+      "observations": {
+        "type": "integer"
+      }
+    }
+  }
+}
+
