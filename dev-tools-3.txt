@@ -1,0 +1,389 @@
+# LAB 3
+
+## Setup
+### Mapping (create the index)
+DELETE morgan-sncf
+PUT morgan-sncf
+{
+  "mappings": {
+    "dynamic" : "false", 
+    "properties": {
+      "@timestamp": {
+        "type": "date"
+      },
+      "message" : {
+        "type" : "keyword",
+        "index" : false
+      },
+      "name": {
+        "type": "completion",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "uic_code": {
+        "type": "keyword"
+      },
+      "issues": {
+        "type": "integer"
+      },
+      "observations": {
+        "type": "integer"
+      }
+    }
+  }
+}
+
+### Pipeline
+PUT _ingest/pipeline/morgan-sncf-pipeline
+{
+  "description": "This pipeline parses the data from sncf-non-conformites.bulk",
+  "processors": [
+    {
+      "csv": {
+        "field": "message",
+        "separator": ";",
+        "target_fields": [
+          "@timestamp",
+          "uic_code",
+          "name",
+          "observations",
+          "issues"
+        ]
+      }
+    }
+  ]
+}
+
+### Data
+POST morgan-sncf/_bulk?pipeline=morgan-sncf-pipeline
+{"index": {}}
+{"message": "2016-12-16T07:29:00+01:00;0087751081;Marseille Blancarde;63.0;1.0"}
+{"index": {}}
+{"message": "2016-12-15T10:44:00+01:00;0087765826;Entraigues-sur-la-Sorgue;26.0;0.0"}
+#........
+
+### Check setup
+GET morgan-sncf/_count
+GET morgan-sncf/_search
+GET _cat/indices/*sncf*
+
+## Part 2 in JSON version
+#  Display the trend in the number of non-conformities, month by month, across all stations.
+#  On the same chart: Display the trend in the number of observations.
+
+GET morgan-sncf/_search
+{
+  "size": 0,
+  "query": {"match_all": {}},
+  "aggs": {
+    "per_month": {
+      "date_histogram": {
+        "field": "@timestamp",
+        "fixed_interval": "30d"
+      },
+      "aggs": {
+        "average_issues": {
+          "avg": {
+            "field": "issues"
+          }
+        }
+      }
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+# Aliases
+PUT my-app-index
+POST _aliases
+{
+  "actions": [
+    {
+      "add": {
+        "index": "my-app-index",
+        "alias": "my-index-alias"
+      }
+    }
+  ]
+}
+
+POST my-index-alias/_doc
+{
+  "some" : "cool data"
+}
+
+POST _reindex
+{
+  "source": {
+    "index": "my-app-index"
+  },
+  "dest": {
+    "index": "my-app-index-v2"
+  }
+}
+
+# move the alias to the new index
+POST _aliases
+{
+  "actions": [
+    {
+      "remove": {
+        "index": "my-app-index",
+        "alias": "my-index-alias"
+      }
+    },
+    {
+      "add": {
+        "index": "my-app-index-v2",
+        "alias": "my-index-alias"
+      }
+    }
+  ]
+}
+
+GET _cat/indices/*bank*
+
+
+# alias + filters
+POST _aliases
+{
+  "actions": [
+    {
+      "add": {
+        "index": "morgan-bank2",
+        "alias": "bank-texas",
+        "filter": {
+          "term": {
+            "state": "TX"
+          }
+        }
+      }
+    }
+  ]
+}
+
+GET bank-texas/_count
+
+# multiple indices
+PUT index-1
+PUT index-2
+PUT index-3
+
+POST _aliases
+{
+  "actions": [
+    {
+      "add": {
+        "index": "index-1",
+        "alias": "some-alias"
+      }
+    },
+    {
+      "add": {
+        "index": "index-2",
+        "alias": "some-alias"
+      }
+    },
+    {
+      "add": {
+        "index": "index-3",
+        "alias": "some-alias",
+        "is_write_index" : true
+      }
+    }
+  ]
+}
+
+POST some-alias/_doc
+{
+  "some" : "cool data"
+}
+
+# alias routes
+POST _aliases
+{
+  "actions": [
+    {
+      "add": {
+        "index": "massive-index",
+        "alias": "alice-index",
+        "routing": "alice"
+      }
+    }
+  ]
+}
+
+# routing
+DELETE massive-index
+PUT massive-index
+{
+  "settings": {
+    "index.number_of_shards": 10,
+    "number_of_replicas": 0
+  }
+}
+# list the shards
+GET _cat/shards/massive-index?v&h=shard,docs
+
+# Store some data without routing
+POST massive-index/_doc?refresh=true
+{
+  "some" : "cool data"
+}
+
+# shard number = hash(_id or _routing) % number of shards
+# shard number = hash(random) % 10
+# shard number = rand(0,9)
+
+# Store some data with routing
+POST massive-index/_doc?refresh=true&routing=max
+{
+  "some" : "cool data"
+}
+
+GET massive-index/_search?routing=alice,bob,joe,pinaple
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# index templates
+PUT the-new-index
+{
+    "settings": {
+
+    },
+    "mappings": {
+
+    }
+}
+
+PUT _index_template/my-super-template
+{
+    "index_patterns": ["my-index-*"],
+    "template": {
+        "settings": {
+            "index.number_of_shards": 2,
+            "number_of_replicas": 0
+        },
+        "mappings": {
+            "properties": {
+                "name" : {
+                    "type": "keyword"
+                }
+            }
+        }
+    }
+}
+
+PUT my-index-whatever
+GET my-index-whatever
+
+GET _cat/nodes?v
+
+
+
+GET _ilm/policy
+
+
+
+PUT _index_template/my-template
+{
+    "index_patterns": ["test-ilm-*"],
+    "template": {
+        "settings": {
+            "index.lifecycle.name": "my-own-log-retention-policy"
+        }
+    },
+    "data_stream": {        
+    }    
+}
+
+PUT _data_stream/test-ilm-myapp
+
+GET test-ilm-myapp
+
+GET _data_stream
+
+
+GET filebeat-9.1.5/_search
+
+GET filebeat-9.1.5/_search
+{
+    "query": {
+        "bool": {
+
+            "must": [
+              {
+                "term": {
+                    "source.geo.country_name" : "France"
+                }
+              }
+            ],
+            "filter": [
+              {
+                "term": {
+                  "event.module" : "apache"
+                }
+              }
+            ]
+        }
+    }
+}
+
+GET _ingest/pipeline/*apache-access*
+
+GET filebeat-9.1.5/_count
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
